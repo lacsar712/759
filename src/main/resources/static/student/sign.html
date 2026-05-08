@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程签到 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">课程签到</div>
+            <div class="navbar-actions">
+                <button class="btn btn-secondary" onclick="navigateTo('/student/courses.html')">返回</button>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        const courseId = getUrlParam('courseId');
+
+        async function checkSession() {
+            try {
+                const session = await get(`/api/student/course/${courseId}/active-session`);
+                const content = document.getElementById('content');
+
+                if (!session) {
+                    content.innerHTML = `
+                        <div class="card">
+                            <div class="alert alert-info">
+                                当前课程暂无签到活动
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // 检查是否已签到
+                const checkResult = await get(`/api/student/session/${session.id}/check`);
+                const hasSigned = checkResult.hasSigned;
+
+                content.innerHTML = `
+                    <div class="card">
+                        <h2>签到活动进行中</h2>
+                        <p>开始时间：${session.startTime}</p>
+                        <p>结束时间：${session.endTime || '无限制'}</p>
+                        <p>状态：${session.status === 'OPEN' ? '进行中' : '已结束'}</p>
+                        ${hasSigned ? `
+                            <button class="btn btn-secondary btn-block" disabled style="margin-top: 20px; font-size: 18px; padding: 20px;">
+                                已签到
+                            </button>
+                            <p style="text-align: center; color: #28a745; margin-top: 10px;">✓ 您已完成签到</p>
+                        ` : `
+                            <button class="btn btn-success btn-block" onclick="signIn(${session.id})" style="margin-top: 20px; font-size: 18px; padding: 20px;">
+                                点击签到
+                            </button>
+                        `}
+                    </div>
+                `;
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/student/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        async function signIn(sessionId) {
+            try {
+                const result = await post(`/api/student/session/${sessionId}/sign`);
+                showSuccess('签到成功！');
+                // 刷新页面显示"已签到"状态
+                setTimeout(() => {
+                    checkSession();
+                }, 1000);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        checkSession();
+    </script>
+</body>
+</html>

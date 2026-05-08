@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生登录 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container login-container">
+        <h1 style="text-align: center; color: #667eea;">学生登录</h1>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="studentNo">学号</label>
+                <input type="text" id="studentNo" name="studentNo" required data-error="请输入学号" placeholder="请输入学号">
+            </div>
+            <div class="form-group">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" required data-error="请输入密码" placeholder="请输入密码">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">登录</button>
+            <div style="text-align: center; margin-top: 20px;">
+                <a href="/teacher/login.html" style="color: #667eea; text-decoration: none;">教师登录</a>
+            </div>
+        </form>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!validateForm('loginForm')) {
+                return;
+            }
+
+            const studentNo = document.getElementById('studentNo').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                await post('/api/auth/student/login', { studentNo, password });
+                navigateTo('/student/courses.html');
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+    </script>
+</body>
+</html>

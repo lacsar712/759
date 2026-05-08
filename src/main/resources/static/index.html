@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container login-container">
+        <h1 style="text-align: center; color: #667eea; margin-bottom: 40px;">签到系统</h1>
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <button class="btn btn-primary btn-block" onclick="navigateTo('/student/login.html')" style="padding: 20px; font-size: 18px;">
+                学生登录
+            </button>
+            <button class="btn btn-primary btn-block" onclick="navigateTo('/teacher/login.html')" style="padding: 20px; font-size: 18px;">
+                教师登录
+            </button>
+        </div>
+        <div style="text-align: center; margin-top: 40px; color: #666;">
+            <p>默认密码：password</p>
+            <p style="font-size: 12px; margin-top: 10px;">测试账号：学生 2021001 / 教师 T001</p>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程管理 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">课程管理</div>
+            <div class="navbar-actions">
+                <button class="btn btn-primary" onclick="showCreateCourseModal()">创建课程</button>
+                <button class="btn btn-secondary" onclick="navigateTo('/teacher/students.html')">学生管理</button>
+                <button class="btn btn-secondary" onclick="navigateTo('/teacher/history.html')">历史记录</button>
+                <button class="btn btn-secondary" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+
+        <div id="courseList">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        async function loadCourses() {
+            try {
+                const courses = await get('/api/teacher/courses');
+                const courseList = document.getElementById('courseList');
+
+                if (courses.length === 0) {
+                    courseList.innerHTML = '<div class="empty">暂无课程，请创建课程</div>';
+                    return;
+                }
+
+                courseList.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>课程名称</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${courses.map(course => `
+                                <tr>
+                                    <td>${escapeHtml(course.courseName)}</td>
+                                    <td>${formatDateTime(course.createdAt)}</td>
+                                    <td>
+                                        <button class="btn btn-success" onclick="openSession(${course.id})">发起签到</button>
+                                        <button class="btn btn-primary" onclick="manageCourseStudents(${course.id})">管理学生</button>
+                                        <button class="btn btn-danger" onclick="deleteCourse(${course.id})">删除</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/teacher/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        function showCreateCourseModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">创建课程</h3>
+                        <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+                    </div>
+                    <form id="createCourseForm">
+                        <div class="form-group">
+                            <label for="courseName">课程名称</label>
+                            <input type="text" id="courseName" required placeholder="请输入课程名称">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">创建</button>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('createCourseForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const courseName = document.getElementById('courseName').value;
+
+                try {
+                    await post('/api/teacher/courses', { courseName });
+                    modal.remove();
+                    showSuccess('课程创建成功');
+                    loadCourses();
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        async function openSession(courseId) {
+            showConfirm('发起签到', '确定要为此课程发起签到活动吗？', async () => {
+                try {
+                    const session = await post(`/api/teacher/course/${courseId}/sessions/open`, { durationMinutes: 10 });
+                    showSuccess('签到活动已发起');
+                    navigateTo(`/teacher/realtime.html?sessionId=${session.id}`);
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        function manageCourseStudents(courseId) {
+            navigateTo(`/teacher/course-students.html?courseId=${courseId}`);
+        }
+
+        async function deleteCourse(courseId) {
+            showConfirm('删除课程', '确定要删除此课程吗？此操作不可恢复。', async () => {
+                try {
+                    await del(`/api/teacher/courses/${courseId}`);
+                    showSuccess('课程已删除');
+                    loadCourses();
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        async function logout() {
+            try {
+                await post('/api/auth/logout');
+                navigateTo('/teacher/login.html');
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        loadCourses();
+    </script>
+</body>
+</html>

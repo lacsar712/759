@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程学生管理 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">课程学生管理</div>
+            <div class="navbar-actions">
+                <button class="btn btn-primary" onclick="showAddStudentModal()">添加学生</button>
+                <button class="btn btn-secondary" onclick="navigateTo('/teacher/courses.html')">返回课程</button>
+            </div>
+        </div>
+
+        <div id="studentList">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        const courseId = getUrlParam('courseId');
+
+        async function loadCourseStudents() {
+            try {
+                const students = await get(`/api/teacher/course/${courseId}/students`);
+                const studentList = document.getElementById('studentList');
+
+                if (students.length === 0) {
+                    studentList.innerHTML = '<div class="empty">该课程暂无学生</div>';
+                    return;
+                }
+
+                studentList.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>学号</th>
+                                <th>姓名</th>
+                                <th>班级</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${students.map(student => `
+                                <tr>
+                                    <td>${escapeHtml(student.studentNo)}</td>
+                                    <td>${escapeHtml(student.name)}</td>
+                                    <td>${escapeHtml(student.className) || '-'}</td>
+                                    <td>
+                                        <button class="btn btn-danger" onclick="removeStudent(${student.id})">移除</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/teacher/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        async function showAddStudentModal() {
+            try {
+                // 获取所有学生
+                const data = await get('/api/teacher/students?page=0&size=1000');
+                const allStudents = data.content;
+
+                // 获取已选学生
+                const courseStudents = await get(`/api/teacher/course/${courseId}/students`);
+                const courseStudentIds = courseStudents.map(s => s.id);
+
+                // 过滤出未选的学生
+                const availableStudents = allStudents.filter(s => !courseStudentIds.includes(s.id));
+
+                if (availableStudents.length === 0) {
+                    showInfo('所有学生都已加入该课程');
+                    return;
+                }
+
+                const modal = document.createElement('div');
+                modal.className = 'modal show';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 class="modal-title">添加学生到课程</h3>
+                            <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+                        </div>
+                        <form id="addStudentForm">
+                            <div class="form-group">
+                                <label for="studentSelect">选择学生</label>
+                                <select id="studentSelect" required>
+                                    <option value="">请选择学生</option>
+                                    ${availableStudents.map(student => `
+                                        <option value="${student.id}">${escapeHtml(student.studentNo)} - ${escapeHtml(student.name)}</option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">添加</button>
+                        </form>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                document.getElementById('addStudentForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const studentId = document.getElementById('studentSelect').value;
+
+                    try {
+                        await post(`/api/teacher/course/${courseId}/enroll`, { studentId: parseInt(studentId) });
+                        modal.remove();
+                        showSuccess('学生已添加到课程');
+                        loadCourseStudents();
+                    } catch (error) {
+                        showError(error.message);
+                    }
+                });
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        async function removeStudent(studentId) {
+            showConfirm('移除学生', '确定要将此学生从课程中移除吗？', async () => {
+                try {
+                    await del(`/api/teacher/course/${courseId}/enroll/${studentId}`);
+                    showSuccess('学生已移除');
+                    loadCourseStudents();
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        loadCourseStudents();
+    </script>
+</body>
+</html>

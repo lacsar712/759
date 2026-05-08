@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>学生管理 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">学生管理</div>
+            <div class="navbar-actions">
+                <button class="btn btn-primary" onclick="showCreateStudentModal()">添加学生</button>
+                <button class="btn btn-secondary" onclick="navigateTo('/teacher/courses.html')">返回课程</button>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <input type="text" id="searchKeyword" placeholder="搜索学号或姓名" onkeyup="searchStudents()">
+        </div>
+
+        <div id="studentList">
+            <div class="loading">加载中...</div>
+        </div>
+
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        let currentPage = 0;
+        const pageSize = 10;
+
+        async function loadStudents(page = 0, keyword = '') {
+            try {
+                const data = await get(`/api/teacher/students?page=${page}&size=${pageSize}&keyword=${keyword}`);
+                const studentList = document.getElementById('studentList');
+
+                if (data.content.length === 0) {
+                    studentList.innerHTML = '<div class="empty">暂无学生</div>';
+                    document.getElementById('pagination').innerHTML = '';
+                    return;
+                }
+
+                studentList.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>学号</th>
+                                <th>姓名</th>
+                                <th>班级</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.content.map(student => `
+                                <tr>
+                                    <td>${escapeHtml(student.studentNo)}</td>
+                                    <td>${escapeHtml(student.name)}</td>
+                                    <td>${escapeHtml(student.className) || '-'}</td>
+                                    <td>${formatDateTime(student.createdAt)}</td>
+                                    <td>
+                                        <button class="btn btn-primary" onclick="editStudent(${student.id})">编辑</button>
+                                        <button class="btn btn-danger" onclick="deleteStudent(${student.id})">删除</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                // 分页
+                const pagination = document.getElementById('pagination');
+                pagination.innerHTML = `
+                    <button class="btn btn-secondary" ${page === 0 ? 'disabled' : ''} onclick="loadStudents(${page - 1}, '${keyword}')">上一页</button>
+                    <span>第 ${page + 1} / ${data.totalPages} 页</span>
+                    <button class="btn btn-secondary" ${page >= data.totalPages - 1 ? 'disabled' : ''} onclick="loadStudents(${page + 1}, '${keyword}')">下一页</button>
+                `;
+
+                currentPage = page;
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/teacher/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        function searchStudents() {
+            const keyword = document.getElementById('searchKeyword').value;
+            loadStudents(0, keyword);
+        }
+
+        function showCreateStudentModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal show';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">添加学生</h3>
+                        <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+                    </div>
+                    <form id="createStudentForm">
+                        <div class="form-group">
+                            <label for="studentNo">学号</label>
+                            <input type="text" id="studentNo" required placeholder="请输入学号">
+                        </div>
+                        <div class="form-group">
+                            <label for="name">姓名</label>
+                            <input type="text" id="name" required placeholder="请输入姓名">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">密码</label>
+                            <input type="password" id="password" placeholder="默认密码：123456">
+                        </div>
+                        <div class="form-group">
+                            <label for="className">班级</label>
+                            <input type="text" id="className" placeholder="请输入班级">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">添加</button>
+                    </form>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('createStudentForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const studentNo = document.getElementById('studentNo').value;
+                const name = document.getElementById('name').value;
+                const password = document.getElementById('password').value || '123456';
+                const className = document.getElementById('className').value;
+
+                try {
+                    await post('/api/teacher/students', { studentNo, name, password, className });
+                    modal.remove();
+                    showSuccess('学生添加成功');
+                    loadStudents(currentPage);
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        async function deleteStudent(studentId) {
+            showConfirm('删除学生', '确定要删除此学生吗？', async () => {
+                try {
+                    await del(`/api/teacher/students/${studentId}`);
+                    showSuccess('学生已删除');
+                    loadStudents(currentPage);
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        async function editStudent(studentId) {
+            try {
+                // 获取学生信息
+                const student = await get(`/api/teacher/students/${studentId}`);
+
+                const modal = document.createElement('div');
+                modal.className = 'modal show';
+                modal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 class="modal-title">编辑学生</h3>
+                            <span class="modal-close" onclick="this.closest('.modal').remove()">&times;</span>
+                        </div>
+                        <form id="editStudentForm">
+                            <div class="form-group">
+                                <label for="editStudentNo">学号</label>
+                                <input type="text" id="editStudentNo" value="${escapeHtml(student.studentNo)}" disabled>
+                            </div>
+                            <div class="form-group">
+                                <label for="editName">姓名</label>
+                                <input type="text" id="editName" value="${escapeHtml(student.name)}" required placeholder="请输入姓名">
+                            </div>
+                            <div class="form-group">
+                                <label for="editPassword">密码</label>
+                                <input type="password" id="editPassword" placeholder="留空则不修改密码">
+                            </div>
+                            <div class="form-group">
+                                <label for="editClassName">班级</label>
+                                <input type="text" id="editClassName" value="${escapeHtml(student.className) || ''}" placeholder="请输入班级">
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-block">保存</button>
+                        </form>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+
+                document.getElementById('editStudentForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('editName').value;
+                    const password = document.getElementById('editPassword').value;
+                    const className = document.getElementById('editClassName').value;
+
+                    const updateData = { name, className };
+                    if (password) {
+                        updateData.password = password;
+                    }
+
+                    try {
+                        await put(`/api/teacher/students/${studentId}`, updateData);
+                        modal.remove();
+                        showSuccess('学生信息已更新');
+                        loadStudents(currentPage);
+                    } catch (error) {
+                        showError(error.message);
+                    }
+                });
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        loadStudents();
+    </script>
+</body>
+</html>

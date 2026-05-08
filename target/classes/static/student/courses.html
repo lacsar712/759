@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的课程 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">我的课程</div>
+            <div class="navbar-actions">
+                <button class="btn btn-secondary" onclick="logout()">退出登录</button>
+            </div>
+        </div>
+
+        <div id="courseList" class="course-list">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        async function loadCourses() {
+            try {
+                const courses = await get('/api/student/courses');
+                const courseList = document.getElementById('courseList');
+
+                if (courses.length === 0) {
+                    courseList.innerHTML = '<div class="empty">暂无课程</div>';
+                    return;
+                }
+
+                courseList.innerHTML = courses.map(course => `
+                    <div class="course-card" onclick="navigateTo('/student/sign.html?courseId=${course.id}')">
+                        <div class="course-name">${escapeHtml(course.courseName)}</div>
+                        <div class="course-info">点击进入签到</div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/student/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        loadCourses();
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时签到统计 - 签到系统</title>
+    <link rel="stylesheet" href="/common/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="navbar">
+            <div class="navbar-title">实时签到统计</div>
+            <div class="navbar-actions">
+                <button class="btn btn-danger" onclick="closeSession()">关闭签到</button>
+                <button class="btn btn-secondary" onclick="navigateTo('/teacher/courses.html')">返回课程</button>
+            </div>
+        </div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCount">-</div>
+                <div class="stat-label">总人数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="signedCount">-</div>
+                <div class="stat-label">已签到</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="unsignedCount">-</div>
+                <div class="stat-label">未签到</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">已签到学生</div>
+            <div id="signedList">
+                <div class="loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/common/utils.js"></script>
+    <script>
+        const sessionId = getUrlParam('sessionId');
+        let refreshInterval;
+
+        async function loadRealtimeData() {
+            try {
+                const data = await get(`/api/teacher/sessions/${sessionId}/realtime`);
+
+                document.getElementById('totalCount').textContent = data.totalCount;
+                document.getElementById('signedCount').textContent = data.signedCount;
+                document.getElementById('unsignedCount').textContent = data.unsignedCount;
+
+                const signedList = document.getElementById('signedList');
+                if (data.records.length === 0) {
+                    signedList.innerHTML = '<div class="empty">暂无签到记录</div>';
+                    return;
+                }
+
+                signedList.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>学号</th>
+                                <th>姓名</th>
+                                <th>签到时间</th>
+                                <th>IP地址</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.records.map(record => {
+                                const student = data.signedStudents.find(s => s.id === record.studentId);
+                                return `
+                                    <tr>
+                                        <td>${student ? escapeHtml(student.studentNo) : '-'}</td>
+                                        <td>${student ? escapeHtml(student.name) : '-'}</td>
+                                        <td>${formatDateTime(record.signTime)}</td>
+                                        <td>${record.clientIp}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (error) {
+                if (error.message.includes('未登录')) {
+                    navigateTo('/teacher/login.html');
+                } else {
+                    showError(error.message);
+                }
+            }
+        }
+
+        async function closeSession() {
+            showConfirm('关闭签到', '确定要关闭此签到活动吗？', async () => {
+                try {
+                    await post(`/api/teacher/sessions/${sessionId}/close`);
+                    clearInterval(refreshInterval);
+                    showSuccess('签到活动已关闭');
+                    setTimeout(() => {
+                        navigateTo('/teacher/courses.html');
+                    }, 2000);
+                } catch (error) {
+                    showError(error.message);
+                }
+            });
+        }
+
+        // 初始加载
+        loadRealtimeData();
+
+        // 每3秒刷新一次
+        refreshInterval = setInterval(loadRealtimeData, 3000);
+
+        // 页面卸载时清除定时器
+        window.addEventListener('beforeunload', () => {
+            clearInterval(refreshInterval);
+        });
+    </script>
+</body>
+</html>
