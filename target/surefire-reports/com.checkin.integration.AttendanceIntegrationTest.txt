@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.checkin.integration.AttendanceIntegrationTest
+-------------------------------------------------------------------------------
+Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.36 s -- in com.checkin.integration.AttendanceIntegrationTest
